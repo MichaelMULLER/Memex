@@ -26,7 +26,10 @@ describe('Custom List Integrations', () => {
 
     beforeEach(async () => {
         const storageManager = initStorageManager()
-        bg = new CustomListBackground({ storageManager })
+        bg = new CustomListBackground({
+            storageManager,
+            searchIndex: {} as any,
+        })
 
         // NOTE: Each test starts creating lists at ID `1`
         let fakeListCount = 0

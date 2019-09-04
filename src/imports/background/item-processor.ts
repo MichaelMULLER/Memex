@@ -1,9 +1,11 @@
+import { browser } from 'webextension-polyfill-ts'
 import fetchPageData from 'src/page-analysis/background/fetch-page-data'
 import { IMPORT_TYPE, DOWNLOAD_STATUS } from 'src/options/imports/constants'
-import * as searchIndex from 'src/search'
-import { tags as tagStorage, customList as listStorage } from 'src/background'
 import { getLocalStorage, setLocalStorage } from 'src/util/storage'
 import { TAG_SUGGESTIONS_KEY } from 'src/constants'
+import { SearchIndex } from 'src/search'
+import TagsBackground from 'src/tags/background'
+import CustomListBackground from 'src/custom-lists/background'
 
 const fetchPageDataOpts = {
     includePageContent: true,
@@ -83,9 +85,17 @@ export default class ImportItemProcessor {
 
     static makeInterruptedErr() {
         const err = new Error('Execution interrupted')
-        err.cancelled = true
+        err['cancelled'] = true
         return err
     }
+
+    constructor(
+        private options: {
+            searchIndex: SearchIndex
+            tagsModule: TagsBackground
+            customListsModule: CustomListBackground
+        },
+    ) {}
 
     /**
      * Hacky way of enabling cancellation. Checks state and throws an Error if detected change.
@@ -109,7 +119,7 @@ export default class ImportItemProcessor {
     }) {
         this._checkCancelled()
 
-        return searchIndex.addPage(searchIndex.getDb)({
+        return this.options.searchIndex.addPage({
             pageDoc,
             visits,
             bookmark,
@@ -120,20 +130,22 @@ export default class ImportItemProcessor {
     async _storeOtherData({ url, tags, collections, annotations }) {
         this._checkCancelled()
         try {
-            const listIds = await listStorage.insertMissingLists({
-                names: collections,
-            })
-            await Promise.all(
-                listIds.map(async listId => {
-                    await listStorage.insertPageToList({
+            const listIds = await this.options.customListsModule.insertMissingLists(
+                {
+                    names: collections,
+                },
+            )
+            await Promise.all([
+                ...listIds.map(async listId => {
+                    await this.options.customListsModule.insertPageToList({
                         id: listId,
                         url,
                     })
                 }),
-                tags.map(async tag => {
-                    await tagStorage.addTag({ url, name: tag })
+                ...tags.map(async tag => {
+                    await this.options.tagsModule.addTag({ url, tag })
                 }),
-            )
+            ])
         } catch (e) {
             console.error(e, url)
         }
@@ -147,7 +159,9 @@ export default class ImportItemProcessor {
      * @returns {PageDoc}
      */
     async _createPageDoc({ url }) {
-        const includeFavIcon = !(await searchIndex.domainHasFavIcon(url))
+        const includeFavIcon = !(await this.options.searchIndex.domainHasFavIcon(
+            url,
+        ))
 
         // Do the page data fetch
         const fetch = fetchPageData({
@@ -173,7 +187,7 @@ export default class ImportItemProcessor {
      * @returns {any} Status string denoting the outcome of import processing as `status`
      *  + optional filled-out page doc as `pageDoc` field.
      */
-    async _processHistory(importItem, options = {}) {
+    async _processHistory(importItem, options: { indexTitle? } = {}) {
         if (!options.indexTitle) {
             await checkVisitItemTransitionTypes(importItem)
         }
@@ -206,7 +220,10 @@ export default class ImportItemProcessor {
         return { status: DOWNLOAD_STATUS.SUCC }
     }
 
-    async _processService(importItem, options = {}) {
+    async _processService(
+        importItem,
+        options: { indexTitle?; bookmarkImports? } = {},
+    ) {
         const {
             url,
             title,

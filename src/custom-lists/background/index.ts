@@ -8,29 +8,31 @@ import internalAnalytics from '../../analytics/internal'
 import { EVENT_NAMES } from '../../analytics/internal/constants'
 import { TabManager } from 'src/activity-logger/background/tab-manager'
 import { getPage } from 'src/search/util'
-import { createPageFromTab, DBGet } from 'src/search'
 import { Tab, CustomListsInterface } from './types'
+import { SearchIndex } from 'src/search'
 
 export default class CustomListBackground {
     storage: CustomListStorage
     public remoteFunctions: CustomListsInterface
     private tabMan: TabManager
     private windows: Windows.Static
-    private getDb: DBGet
+    private searchIndex: SearchIndex
 
     constructor({
         storageManager,
         tabMan,
         windows,
+        searchIndex,
     }: {
         storageManager: Storex
         tabMan?: TabManager
         windows?: Windows.Static
+        searchIndex: SearchIndex
     }) {
         // Makes the custom list Table in indexed DB.
         this.storage = new CustomListStorage({ storageManager })
-        this.getDb = async () => storageManager
         this.tabMan = tabMan
+        this.searchIndex = searchIndex
         this.windows = windows
         this.remoteFunctions = {
             createCustomList: this.createCustomList.bind(this),
@@ -197,10 +199,10 @@ export default class CustomListBackground {
         const time = Date.now()
 
         tabs.forEach(async tab => {
-            let page = await getPage(this.getDb)(tab.url)
+            let page = await this.searchIndex.getPage(tab.url)
 
             if (page == null || page.isStub) {
-                page = await createPageFromTab(this.getDb)({
+                page = await this.searchIndex.createPageFromTab({
                     tabId: tab.tabId,
                     url: tab.url,
                     allowScreenshot: false,
