@@ -152,8 +152,6 @@ export default class SearchBackground {
             throw new InvalidSearchError()
         }
 
-        console.log(qb)
-
         return {
             ...params,
             tagsInc: qb.tags,
