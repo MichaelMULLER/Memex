@@ -35,7 +35,6 @@ const backgroundModules = createBackgroundModules({
     browserAPIs: browser,
     authBackground: null,
     signalTransportFactory: null,
-    clientSyncLog: null,
     sharedSyncLog: null,
 })
 
