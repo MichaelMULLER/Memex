@@ -26,7 +26,6 @@ import {
     setupBackgroundModules,
     registerBackgroundModuleCollections,
 } from './background-script/setup'
-import { combineSearchIndex } from './search/search-index'
 
 initSentry()
 
@@ -36,6 +35,8 @@ const backgroundModules = createBackgroundModules({
     browserAPIs: browser,
     authBackground: null,
     signalTransportFactory: null,
+    clientSyncLog: null,
+    sharedSyncLog: null,
 })
 
 // TODO: There's still some evil code around that imports this entry point
