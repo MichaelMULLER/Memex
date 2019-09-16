@@ -27,28 +27,26 @@ import {
     registerBackgroundModuleCollections,
 } from './background-script/setup'
 
-initSentry()
+export async function main() {
+    initSentry()
 
-const storageManager = initStorex()
-const backgroundModules = createBackgroundModules({
-    storageManager,
-    browserAPIs: browser,
-    authBackground: null,
-    signalTransportFactory: null,
-    sharedSyncLog: null,
-})
+    const storageManager = initStorex()
+    const backgroundModules = createBackgroundModules({
+        storageManager,
+        browserAPIs: browser,
+        authBackground: null,
+        signalTransportFactory: null,
+        sharedSyncLog: null,
+    })
 
-// TODO: There's still some evil code around that imports this entry point
-const { tags, customLists: customList } = backgroundModules
-export { tags, customList }
+    await setupBackgroundModules(backgroundModules)
+    registerBackgroundModuleCollections(storageManager, backgroundModules)
+    setupNotificationClickListener()
 
-setupBackgroundModules(backgroundModules)
-registerBackgroundModuleCollections(storageManager, backgroundModules)
-setupNotificationClickListener()
+    let bgScript: BackgroundScript
 
-let bgScript: BackgroundScript
+    await storageManager.finishInitialization()
 
-storageManager.finishInitialization().then(() => {
     setStorex(storageManager)
 
     // TODO: This stuff should live in src/background-script/setup.ts
@@ -63,23 +61,27 @@ storageManager.finishInitialization().then(() => {
     bgScript.setupRemoteFunctions()
     bgScript.setupWebExtAPIHandlers()
     bgScript.setupAlarms(alarms)
-})
 
-// Gradually moving all remote function registrations here
-setupRemoteFunctionsImplementations({
-    notifications: { createNotification },
-    bookmarks: {
-        addPageBookmark:
-            backgroundModules.search.remoteFunctions.bookmarks.addPageBookmark,
-        delPageBookmark:
-            backgroundModules.search.remoteFunctions.bookmarks.delPageBookmark,
-    },
-})
+    // Gradually moving all remote function registrations here
+    setupRemoteFunctionsImplementations({
+        notifications: { createNotification },
+        bookmarks: {
+            addPageBookmark:
+                backgroundModules.search.remoteFunctions.bookmarks
+                    .addPageBookmark,
+            delPageBookmark:
+                backgroundModules.search.remoteFunctions.bookmarks
+                    .delPageBookmark,
+        },
+    })
 
-// Attach interesting features onto global window scope for interested users
-window['getDb'] = getDb
-window['storageMan'] = storageManager
-window['bgScript'] = bgScript
-window['bgModules'] = backgroundModules
-window['analytics'] = analytics
-window['tabMan'] = backgroundModules.activityLogger.tabManager
+    // Attach interesting features onto global window scope for interested users
+    window['getDb'] = getDb
+    window['storageMan'] = storageManager
+    window['bgScript'] = bgScript
+    window['bgModules'] = backgroundModules
+    window['analytics'] = analytics
+    window['tabMan'] = backgroundModules.activityLogger.tabManager
+}
+
+main()
